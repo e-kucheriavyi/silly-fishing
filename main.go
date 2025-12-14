@@ -14,17 +14,20 @@ import (
 const (
 	screenW = 640
 	screenH = 480
-	screenPadding = 32
-	framePadding = 32
+
+	padding = 32
 	gap = 32
-	frameW = screenW - screenPadding * 2
-	innerFrameW = frameW - framePadding * 2
-	frameH = screenH - screenPadding * 2
-	innerFrameH = frameH - framePadding * 2
-	barW = (screenW - screenPadding * 2 - framePadding * 2 - gap) / 2
+
+	frameW = screenW - padding * 2
+	frameH = screenH - padding * 2
+
+	barW = (screenW - padding * 2 - gap) / 2
+
 	fishScale = 0.05
-	fishW = innerFrameH * fishScale
+	fishW = frameH * fishScale
 	fishSpeed = 0.005
+
+	borderWidth = 8
 )
 
 type Game struct {
@@ -39,19 +42,21 @@ type Game struct {
 }
 
 func (g *Game) Collide() bool {
-	fishStart := g.Fish * innerFrameH
+	fishStart := g.Fish * frameH
 	fishEnd := fishStart + fishW
 
-	cursorStart := g.Cursor * innerFrameH
-	cursorEnd := cursorStart + innerFrameH * g.Skill
+	cursorStart := g.Cursor * frameH
+	cursorEnd := cursorStart + frameH * g.Skill
 
 	return fishStart >= cursorStart && fishEnd <= cursorEnd
 }
 
 func (g *Game) Update() error {
-	g.Pressing = ebiten.IsKeyPressed(ebiten.KeySpace)
+	isMousePressed := ebiten.IsMouseButtonPressed(ebiten.MouseButton0)
+	isSpacePressed := ebiten.IsKeyPressed(ebiten.KeySpace)
+	g.Pressing = isSpacePressed || isMousePressed
 
-	if rand.Float32() > 0.8 {
+	if rand.Float32() > 0.9 {
 		g.D *= -1.0
 	}
 
@@ -103,79 +108,97 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	bg := color.RGBA{48, 98, 48, 255}
+	borderColor := color.RGBA{15, 56, 15, 255}
+
+	// bg
+	vector.FillRect(
+		screen,
+		0,
+		0,
+		screenW,
+		screenH,
+		bg,
+		false,
+	)
+
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("Score: %.2f", g.Score))
 
-	// frame
-	vector.FillRect(
-		screen,
-		screenPadding,
-		screenPadding,
-		frameW,
-		frameH,
-		color.RGBA{100, 100, 100, 255},
-		false,
-	)
-
 	// fish bar
-	vector.FillRect(
+	vector.StrokeRect(
 		screen,
-		screenPadding + framePadding,
-		screenPadding + framePadding,
-		barW,
-		innerFrameH,
-		color.RGBA{20, 20, 20, 255},
+		padding - borderWidth / 2,
+		padding - borderWidth / 2,
+		barW + borderWidth,
+		frameH + borderWidth,
+		borderWidth,
+		borderColor,
 		false,
 	)
 
-	var cursorA uint8 = 100
+	var cursorA uint8 = 255
 
 	if g.IsColliding {
-		cursorA = 255
+		cursorA = 100
 	}
+
+	cursorColor := color.RGBA{155, 188, 15, cursorA}
 
 	// cursor
 	vector.FillRect(
 		screen,
-		screenPadding + framePadding,
-		screenPadding + framePadding + innerFrameH * g.Cursor,
+		padding,
+		padding + frameH * g.Cursor,
 		barW,
-		innerFrameH * g.Skill,
-		color.RGBA{0, cursorA, 0, cursorA},
+		frameH * g.Skill,
+		cursorColor,
 		false,
 	)
 
 	// fish
 	vector.FillRect(
 		screen,
-		screenPadding + framePadding + barW / 2 - fishW / 2,
-		screenPadding + framePadding + innerFrameH * g.Fish,
+		padding + barW / 2 - fishW / 2,
+		padding + frameH * g.Fish,
 		fishW,
 		fishW,
 		color.RGBA{255, 0, 0, 255},
 		false,
 	)
 
-	// progress bar
-	vector.FillRect(
+	vector.StrokeRect(
 		screen,
-		screenPadding + framePadding + barW + gap,
-		screenPadding + framePadding,
-		barW,
-		innerFrameH,
-		color.RGBA{20, 20, 20, 255},
+		padding + barW / 2 - fishW / 2,
+		padding + frameH * g.Fish,
+		fishW,
+		fishW,
+		borderWidth,
+		borderColor,
 		false,
 	)
 
-	progressH := innerFrameH * g.Progress
+	// progress bar
+	vector.StrokeRect(
+		screen,
+		padding + barW + gap - borderWidth / 2,
+		padding - borderWidth / 2,
+		barW + borderWidth,
+		frameH + borderWidth,
+		borderWidth,
+		borderColor,
+		false,
+	)
+
+	progressH := frameH * g.Progress
 
 	// progress filling
 	vector.FillRect(
 		screen,
-		screenPadding + framePadding + barW + gap,
-		screenPadding + framePadding + innerFrameH - progressH,
+		padding + barW + gap,
+		padding + frameH - progressH,
 		barW,
 		progressH,
-		color.RGBA{0, 0, 255, 255},
+		cursorColor,
 		false,
 	)
 }

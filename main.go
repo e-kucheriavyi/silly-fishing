@@ -30,15 +30,31 @@ const (
 	borderWidth = 8
 )
 
+var bg = color.RGBA{48, 98, 48, 255}
+var borderColor = color.RGBA{15, 56, 15, 255}
+var limeColor = color.RGBA{155, 188, 15, 100}
+var paleColor = color.RGBA{155, 188, 15, 255}
+
+type GameStage byte
+
+const (
+	INTRO GameStage = iota
+	GAME
+	SCORE
+)
+
 type Game struct {
 	Cursor float32
 	Fish float32
 	Skill float32
-	Score float32
+	Score int
+	Record int
 	Progress float32
 	IsColliding bool
 	Pressing bool
 	D float32
+	IsCatching bool
+	Stage GameStage
 }
 
 func (g *Game) Collide() bool {
@@ -55,6 +71,21 @@ func (g *Game) Update() error {
 	isMousePressed := ebiten.IsMouseButtonPressed(ebiten.MouseButton0)
 	isSpacePressed := ebiten.IsKeyPressed(ebiten.KeySpace)
 	g.Pressing = isSpacePressed || isMousePressed
+
+	if g.Stage == INTRO || g.Stage == SCORE {
+		if g.IsCatching && g.Pressing {
+			return nil
+		}
+
+		g.IsCatching = false
+
+		if g.Pressing {
+			g.Score = 0
+			g.Stage = GAME
+		}
+
+		return nil
+	}
 
 	if rand.Float32() > 0.9 {
 		g.D *= -1.0
@@ -86,13 +117,18 @@ func (g *Game) Update() error {
 	g.IsColliding = g.Collide()
 
 	if g.IsColliding {
+		g.IsCatching = true
 		g.Progress += 0.01
 
 		if g.Progress >= 1.0 {
 			g.Progress = 0
 			g.Skill -= g.Skill * 0.05
-			g.Score += 100
+			g.Score += 1
+			if g.Score > g.Record {
+				g.Record = g.Score
+			}
 			g.Fish = rand.Float32()
+			g.IsCatching = false
 		}
 
 		return nil
@@ -102,27 +138,33 @@ func (g *Game) Update() error {
 
 	if g.Progress <= 0.0 {
 		g.Progress = 0.0
+
+		if g.IsCatching {
+			g.Stage = SCORE
+		}
 	}
 
 	return nil
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
-	bg := color.RGBA{48, 98, 48, 255}
-	borderColor := color.RGBA{15, 56, 15, 255}
-
-	// bg
-	vector.FillRect(
+func (g *Game) DrawIntro(screen *ebiten.Image) {
+	ebitenutil.DebugPrint(
 		screen,
-		0,
-		0,
-		screenW,
-		screenH,
-		bg,
-		false,
+		`Rules:
+		- Press Space or Left Mouse Button to move cursor higher
+		- The cursor drops when nothing is pressed
+		- Keep the target inside your cursor to fill the progress bar
+		- When the bar is filled you get one point
+		- With each point cursor shinks by 5%
+		- You lose if the bar drops to zero
+
+		Press Space or Left Mouse Button to start`,
 	)
 
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("Score: %.2f", g.Score))
+}
+
+func (g *Game) DrawGame(screen *ebiten.Image) {
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("Score: %d", g.Score))
 
 	// fish bar
 	vector.StrokeRect(
@@ -136,13 +178,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		false,
 	)
 
-	var cursorA uint8 = 255
+	cursorColor := paleColor
 
 	if g.IsColliding {
-		cursorA = 100
+		cursorColor = limeColor
 	}
-
-	cursorColor := color.RGBA{155, 188, 15, cursorA}
 
 	// cursor
 	vector.FillRect(
@@ -203,6 +243,38 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	)
 }
 
+func (g *Game) DrawScore(screen *ebiten.Image) {
+	ebitenutil.DebugPrint(
+		screen,
+		fmt.Sprintf("Game Over\nScore: %d\nRecord: %d", g.Score, g.Record),
+	)
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	// bg
+	vector.FillRect(
+		screen,
+		0,
+		0,
+		screenW,
+		screenH,
+		bg,
+		false,
+	)
+
+	if g.Stage == INTRO {
+		g.DrawIntro(screen)
+		return
+	}
+
+	if g.Stage == SCORE {
+		g.DrawScore(screen)
+		return
+	}
+
+	g.DrawGame(screen)
+}
+
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return screenW, screenH
 }
@@ -211,7 +283,6 @@ func main() {
 	game := Game{
 		Cursor: 0.65,
 		Skill: 0.7,
-		Score: 0.0,
 		Progress: 0.7,
 		Fish: 0.7,
 		D: 1.0,

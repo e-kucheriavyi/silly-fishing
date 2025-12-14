@@ -1,14 +1,14 @@
 package main
 
 import (
-	"log"
 	"fmt"
 	"image/color"
+	"log"
 	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 const (
@@ -16,15 +16,15 @@ const (
 	screenH = 480
 
 	padding = 32
-	gap = 32
+	gap     = 32
 
-	frameW = screenW - padding * 2
-	frameH = screenH - padding * 2
+	frameW = screenW - padding*2
+	frameH = screenH - padding*2
 
-	barW = (screenW - padding * 2 - gap) / 2
+	barW = (screenW - padding*2 - gap) / 2
 
 	fishScale = 0.05
-	fishW = frameH * fishScale
+	fishW     = frameH * fishScale
 	fishSpeed = 0.005
 
 	borderWidth = 8
@@ -44,17 +44,17 @@ const (
 )
 
 type Game struct {
-	Cursor float32
-	Fish float32
-	Skill float32
-	Score int
-	Record int
-	Progress float32
+	Cursor      float32
+	Fish        float32
+	Skill       float32
+	Score       int
+	Record      int
+	Progress    float32
 	IsColliding bool
-	Pressing bool
-	D float32
-	IsCatching bool
-	Stage GameStage
+	Pressing    bool
+	D           float32
+	IsCatching  bool
+	Stage       GameStage
 }
 
 func (g *Game) Collide() bool {
@@ -62,7 +62,7 @@ func (g *Game) Collide() bool {
 	fishEnd := fishStart + fishW
 
 	cursorStart := g.Cursor * frameH
-	cursorEnd := cursorStart + frameH * g.Skill
+	cursorEnd := cursorStart + frameH*g.Skill
 
 	return fishStart >= cursorStart && fishEnd <= cursorEnd
 }
@@ -80,6 +80,7 @@ func (g *Game) Update() error {
 		g.IsCatching = false
 
 		if g.Pressing {
+			g.Skill = 0.7
 			g.Score = 0
 			g.Stage = GAME
 		}
@@ -91,9 +92,9 @@ func (g *Game) Update() error {
 		g.D *= -1.0
 	}
 
-	g.Fish = g.Fish + fishSpeed * g.D
+	g.Fish = g.Fish + fishSpeed*g.D
 
-	if g.Fish > 1.0 - fishScale {
+	if g.Fish > 1.0-fishScale {
 		g.Fish = 1.0 - fishScale
 	}
 
@@ -107,7 +108,7 @@ func (g *Game) Update() error {
 		g.Cursor += 0.01
 	}
 
-	if g.Cursor > 1.0 - g.Skill {
+	if g.Cursor > 1.0-g.Skill {
 		g.Cursor = 1.0 - g.Skill
 	}
 	if g.Cursor < 0 {
@@ -169,10 +170,10 @@ func (g *Game) DrawGame(screen *ebiten.Image) {
 	// fish bar
 	vector.StrokeRect(
 		screen,
-		padding - borderWidth / 2,
-		padding - borderWidth / 2,
-		barW + borderWidth,
-		frameH + borderWidth,
+		padding-borderWidth/2,
+		padding-borderWidth/2,
+		barW+borderWidth,
+		frameH+borderWidth,
 		borderWidth,
 		borderColor,
 		false,
@@ -188,9 +189,9 @@ func (g *Game) DrawGame(screen *ebiten.Image) {
 	vector.FillRect(
 		screen,
 		padding,
-		padding + frameH * g.Cursor,
+		padding+frameH*g.Cursor,
 		barW,
-		frameH * g.Skill,
+		frameH*g.Skill,
 		cursorColor,
 		false,
 	)
@@ -198,8 +199,8 @@ func (g *Game) DrawGame(screen *ebiten.Image) {
 	// fish
 	vector.FillRect(
 		screen,
-		padding + barW / 2 - fishW / 2,
-		padding + frameH * g.Fish,
+		padding+barW/2-fishW/2,
+		padding+frameH*g.Fish,
 		fishW,
 		fishW,
 		color.RGBA{255, 0, 0, 255},
@@ -208,8 +209,8 @@ func (g *Game) DrawGame(screen *ebiten.Image) {
 
 	vector.StrokeRect(
 		screen,
-		padding + barW / 2 - fishW / 2,
-		padding + frameH * g.Fish,
+		padding+barW/2-fishW/2,
+		padding+frameH*g.Fish,
 		fishW,
 		fishW,
 		borderWidth,
@@ -220,10 +221,10 @@ func (g *Game) DrawGame(screen *ebiten.Image) {
 	// progress bar
 	vector.StrokeRect(
 		screen,
-		padding + barW + gap - borderWidth / 2,
-		padding - borderWidth / 2,
-		barW + borderWidth,
-		frameH + borderWidth,
+		padding+barW+gap-borderWidth/2,
+		padding-borderWidth/2,
+		barW+borderWidth,
+		frameH+borderWidth,
 		borderWidth,
 		borderColor,
 		false,
@@ -234,8 +235,8 @@ func (g *Game) DrawGame(screen *ebiten.Image) {
 	// progress filling
 	vector.FillRect(
 		screen,
-		padding + barW + gap,
-		padding + frameH - progressH,
+		padding+barW+gap,
+		padding+frameH-progressH,
 		barW,
 		progressH,
 		cursorColor,
@@ -281,11 +282,11 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	game := Game{
-		Cursor: 0.65,
-		Skill: 0.7,
+		Cursor:   0.65,
+		Skill:    0.7,
 		Progress: 0.7,
-		Fish: 0.7,
-		D: 1.0,
+		Fish:     0.7,
+		D:        1.0,
 	}
 
 	ebiten.SetWindowSize(screenW, screenH)
@@ -294,5 +295,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-
-

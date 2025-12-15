@@ -97,7 +97,7 @@ func (g *Game) Finish() {
 }
 
 func (g *Game) VobbleFish() {
-	if rand.Float32() > 0.9 {
+	if rand.Float32() > 0.95 {
 		g.D *= -1.0
 	}
 
@@ -130,8 +130,9 @@ func (g *Game) MoveCursor() {
 func (g *Game) ListenPressing() {
 	isMousePressed := ebiten.IsMouseButtonPressed(ebiten.MouseButton0)
 	isSpacePressed := ebiten.IsKeyPressed(ebiten.KeySpace)
-	// TODO: touches
-	g.IsPressing = isSpacePressed || isMousePressed
+	isTouching := len(ebiten.TouchIDs()) > 0
+
+	g.IsPressing = isSpacePressed || isMousePressed || isTouching
 }
 
 func (g *Game) Update() error {

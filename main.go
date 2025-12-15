@@ -27,7 +27,6 @@ const (
 
 	fishScale = 0.05
 	fishW     = frameH * fishScale
-	fishSpeed = 0.005
 
 	borderWidth = 8
 )
@@ -48,6 +47,7 @@ const (
 type Game struct {
 	Cursor      float32
 	Fish        float32
+	FishSpeed   float32
 	Skill       float32
 	Score       int
 	Record      int
@@ -79,7 +79,17 @@ func (g *Game) Start() {
 
 func (g *Game) Catch() {
 	g.Progress = 0
-	g.Skill -= g.Skill * 0.05
+	g.Skill *= 0.95
+
+	if g.Skill < fishScale*1.1 {
+		g.Skill = fishScale * 1.1
+		g.FishSpeed *= 1.05
+
+		if g.FishSpeed > 0.5 {
+			g.FishSpeed = 0.5
+		}
+	}
+
 	g.Score += 1
 
 	if g.Score > g.Record {
@@ -104,8 +114,8 @@ func (g *Game) VobbleFish() {
 		return
 	}
 
-	g.Fish = g.Fish + fishSpeed*g.D
-	g.MoveD -= fishSpeed
+	g.Fish = g.Fish + g.FishSpeed*g.D
+	g.MoveD -= g.FishSpeed
 
 	if g.Fish > 1.0-fishScale {
 		g.Fish = 1.0 - fishScale
@@ -323,10 +333,11 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	game := Game{
-		Cursor: 0.8,
-		Skill:  0.7,
-		Fish:   0.1,
-		D:      1.0,
+		Cursor:    0.8,
+		Skill:     0.7,
+		Fish:      0.1,
+		D:         1.0,
+		FishSpeed: 0.005,
 	}
 
 	ebiten.SetWindowSize(screenW, screenH)

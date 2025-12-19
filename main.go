@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"math/rand/v2"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	// "github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -25,9 +23,6 @@ const (
 
 	barW = (screenW - padding*2 - gap) / 2
 
-	fishScale = 0.05
-	fishW     = frameH * fishScale
-
 	borderWidth = 8
 )
 
@@ -42,105 +37,86 @@ const (
 	INTRO GameStage = iota
 	GAME
 	SCORE
+	UPGRADES
+	SHOP
+	SECRET_ANIMATION
 )
 
 type Game struct {
-	Cursor      float32
-	Fish        float32
-	FishSpeed   float32
-	Skill       float32
-	Score       int
-	Record      int
-	Progress    float32
-	IsColliding bool
-	IsPressing  bool
-	D           float32
-	MoveD       float32
-	IsCatching  bool
-	Stage       GameStage
-	EndTime     time.Time
+	Cursor   *Cursor
+	Target   *Target
+	Progress *Progress
+
+	Score  int
+	Record int
+	Total  int
+
+	Prestige int
+
+	IsPressing bool
+
+	Stage   GameStage
+	EndTime time.Time
 }
 
-func (g *Game) Collide() bool {
-	fishStart := g.Fish * frameH
-	fishEnd := fishStart + fishW
+func NewGame() *Game {
+	target := NewTarget()
+	cursor := NewCursor()
+	progress := NewProgress()
 
-	cursorStart := g.Cursor * frameH
-	cursorEnd := cursorStart + frameH*g.Skill
+	cursor.Color = paleColor
+	cursor.ActiveColor = limeColor
 
-	return fishStart >= cursorStart && fishEnd <= cursorEnd
+	return &Game{
+		Target:   target,
+		Cursor:   cursor,
+		Progress: progress,
+	}
+}
+
+func (g *Game) GetScoreGain() int {
+	s := 2 * g.Prestige
+
+	if s == 0 {
+		return 1
+	}
+
+	return s
 }
 
 func (g *Game) Start() {
-	g.Skill = 0.7
 	g.Score = 0
+	g.Cursor.Level = 1
+	g.Target.Level = 1
+
+	g.Progress.Reset()
+
 	g.Stage = GAME
 }
 
 func (g *Game) Catch() {
-	g.Progress = 0
-	g.Skill *= 0.95
+	g.Progress.Reset()
 
-	if g.Skill < fishScale*1.1 {
-		g.Skill = fishScale * 1.1
-		g.FishSpeed *= 1.05
-
-		if g.FishSpeed > 0.5 {
-			g.FishSpeed = 0.5
-		}
+	if g.Cursor.IsMinSize {
+		g.Target.Level += 1
+	} else {
+		g.Cursor.Level += 1
 	}
 
-	g.Score += 1
+	g.Score += g.GetScoreGain()
+	g.Total += g.GetScoreGain()
 
 	if g.Score > g.Record {
 		g.Record = g.Score
 	}
 
-	g.Fish = 0.1
-	g.Cursor = 0.8
-	g.IsCatching = false
+	g.Cursor.X = 0.3
+	g.Target.X = 0.35
 }
 
 func (g *Game) Finish() {
 	g.Stage = SCORE
-	g.IsCatching = false
 	g.EndTime = time.Now()
-}
-
-func (g *Game) VobbleFish() {
-	if g.MoveD <= 0 {
-		g.D *= -1.0
-		g.MoveD = rand.Float32()
-		return
-	}
-
-	g.Fish = g.Fish + g.FishSpeed*g.D
-	g.MoveD -= g.FishSpeed
-
-	if g.Fish > 1.0-fishScale {
-		g.Fish = 1.0 - fishScale
-		g.MoveD = 0
-	}
-
-	if g.Fish < 0 {
-		g.Fish = 0.0
-		g.MoveD = 0
-	}
-}
-
-func (g *Game) MoveCursor() {
-	if g.IsPressing {
-		g.Cursor -= 0.01
-	} else {
-		g.Cursor += 0.01
-	}
-
-	if g.Cursor > 1.0-g.Skill {
-		g.Cursor = 1.0 - g.Skill
-	}
-	if g.Cursor < 0 {
-		g.Cursor = 0.0
-	}
 }
 
 func (g *Game) ListenPressing() {
@@ -150,6 +126,14 @@ func (g *Game) ListenPressing() {
 	isTouching := len(ebiten.TouchIDs()) > 0
 
 	g.IsPressing = isSpacePressed || isMousePressed || isTouching
+}
+
+func (g *Game) OpenUpgrades() {
+	g.Stage = UPGRADES
+}
+
+func (g *Game) OpenShop() {
+	g.Stage = SHOP
 }
 
 func (g *Game) Update() error {
@@ -169,31 +153,26 @@ func (g *Game) Update() error {
 		return nil
 	}
 
-	g.VobbleFish()
+	g.Target.Vobble()
 
-	g.MoveCursor()
+	g.Cursor.Move(g)
 
-	g.IsColliding = g.Collide()
+	g.Cursor.Collide(g.Target)
 
-	if g.IsColliding {
-		g.IsCatching = true
-		g.Progress += 0.01
+	if g.Cursor.IsColliding {
+		g.Progress.Increase()
 
-		if g.Progress >= 1.0 {
+		if g.Progress.IsMax() {
 			g.Catch()
 		}
 
 		return nil
 	}
 
-	g.Progress -= 0.01
+	g.Progress.Decrease()
 
-	if g.Progress <= 0.0 {
-		g.Progress = 0.0
-
-		if g.IsCatching {
-			g.Finish()
-		}
+	if g.Progress.IsMin() {
+		g.Finish()
 	}
 
 	return nil
@@ -212,13 +191,11 @@ func (g *Game) DrawIntro(screen *ebiten.Image) {
 
 		Press Space or Left Mouse Button to start`,
 	)
-
 }
 
 func (g *Game) DrawGame(screen *ebiten.Image) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("Score: %d", g.Score))
 
-	// fish bar
 	vector.StrokeRect(
 		screen,
 		padding-borderWidth/2,
@@ -230,69 +207,11 @@ func (g *Game) DrawGame(screen *ebiten.Image) {
 		false,
 	)
 
-	cursorColor := paleColor
+	g.Cursor.Draw(screen, g)
 
-	if g.IsColliding {
-		cursorColor = limeColor
-	}
+	g.Target.Draw(screen, g)
 
-	// cursor
-	vector.FillRect(
-		screen,
-		padding,
-		padding+frameH*g.Cursor,
-		barW,
-		frameH*g.Skill,
-		cursorColor,
-		false,
-	)
-
-	// fish
-	vector.FillRect(
-		screen,
-		padding+barW/2-fishW/2,
-		padding+frameH*g.Fish,
-		fishW,
-		fishW,
-		color.RGBA{255, 0, 0, 255},
-		false,
-	)
-
-	vector.StrokeRect(
-		screen,
-		padding+barW/2-fishW/2,
-		padding+frameH*g.Fish,
-		fishW,
-		fishW,
-		borderWidth,
-		borderColor,
-		false,
-	)
-
-	// progress bar
-	vector.StrokeRect(
-		screen,
-		padding+barW+gap-borderWidth/2,
-		padding-borderWidth/2,
-		barW+borderWidth,
-		frameH+borderWidth,
-		borderWidth,
-		borderColor,
-		false,
-	)
-
-	progressH := frameH * g.Progress
-
-	// progress filling
-	vector.FillRect(
-		screen,
-		padding+barW+gap,
-		padding+frameH-progressH,
-		barW,
-		progressH,
-		cursorColor,
-		false,
-	)
+	g.Progress.Draw(screen, g)
 }
 
 func (g *Game) DrawScore(screen *ebiten.Image) {
@@ -302,8 +221,27 @@ func (g *Game) DrawScore(screen *ebiten.Image) {
 	)
 }
 
+func (g *Game) DrawUpgrades(screen *ebiten.Image) {
+	// TODO
+	w := float32(frameW/3 - gap*2)
+	h := float32(frameH/3 - gap*2)
+
+	vector.FillRect(
+		screen,
+		padding,
+		padding,
+		w,
+		h,
+		limeColor,
+		false,
+	)
+}
+
+func (g *Game) DrawShop(screen *ebiten.Image) {
+	// TODO
+}
+
 func (g *Game) Draw(screen *ebiten.Image) {
-	// bg
 	vector.FillRect(
 		screen,
 		0,
@@ -324,25 +262,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		return
 	}
 
+	if g.Stage == UPGRADES {
+		g.DrawUpgrades(screen)
+		return
+	}
+
+	if g.Stage == SHOP {
+		g.DrawShop(screen)
+		return
+	}
+
 	g.DrawGame(screen)
 }
 
-func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenW, screenH
 }
 
 func main() {
-	game := Game{
-		Cursor:    0.8,
-		Skill:     0.7,
-		Fish:      0.1,
-		D:         1.0,
-		FishSpeed: 0.005,
-	}
+	game := NewGame()
 
 	ebiten.SetWindowSize(screenW, screenH)
 	ebiten.SetWindowTitle("Silly Fishing")
-	if err := ebiten.RunGame(&game); err != nil {
+	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }
